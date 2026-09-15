@@ -1,0 +1,19 @@
+{
+  "manifest_version": 3,
+  "name": "Tab Group Manager",
+  "version": "1.0",
+  "description": "根据域名自动将浏览器标签页分组",
+  "permissions": [
+    "alarms",
+    "tabGroups",
+    "tabs",
+    "storage"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Tab Group Manager"
+  }
+}

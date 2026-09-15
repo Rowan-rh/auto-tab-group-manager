@@ -1,0 +1,470 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <title>标签组管理 - Tab Group Manager</title>
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      padding: 24px;
+      min-width: 720px;
+      font-family: Arial, "PingFang SC", "Microsoft YaHei", sans-serif;
+      font-size: 14px;
+      color: #202124;
+      background-color: #f8f9fa;
+    }
+
+    .page-header {
+      max-width: 1080px;
+      margin: 0 auto 16px;
+    }
+
+    .page-header h1 {
+      font-size: 20px;
+      margin: 0 0 4px;
+    }
+
+    .page-header p {
+      margin: 0;
+      color: #5f6368;
+      font-size: 13px;
+    }
+
+    .page-header p + p {
+      margin-top: 6px;
+      font-size: 12px;
+    }
+
+    .page-header code {
+      padding: 1px 4px;
+      font-size: 11px;
+      background-color: #f1f3f4;
+      border-radius: 3px;
+    }
+
+    .page-summary {
+      margin-top: 6px;
+      padding: 6px 10px;
+      font-size: 12px;
+      font-family: ui-monospace, Menlo, Consolas, monospace;
+      color: #5f6368;
+      background-color: #f1f3f4;
+      border-radius: 4px;
+    }
+
+    /* 顶部工具栏：全局一键操作 */
+    .toolbar {
+      max-width: 1080px;
+      margin: 0 auto 12px;
+      padding: 12px;
+      background-color: #fff;
+      border: 1px solid #dadce0;
+      border-radius: 8px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .toolbar-title {
+      font-size: 13px;
+      color: #5f6368;
+      margin-right: 4px;
+    }
+
+    /* 手动关闭休眠的独立 row：与 .toolbar 同卡片外观，但上方留小间距 */
+    .toolbar-manual {
+      margin-top: -4px;
+    }
+
+    .toolbar-manual input[type="number"] {
+      padding: 5px 6px;
+      font-size: 13px;
+      font-family: inherit;
+      border: 1px solid #dadce0;
+      border-radius: 4px;
+    }
+
+    button {
+      padding: 7px 14px;
+      font-size: 13px;
+      font-family: inherit;
+      color: #1a73e8;
+      background-color: #fff;
+      border: 1px solid #dadce0;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+
+    button:hover:not(:disabled) {
+      background-color: #f1f3f4;
+      border-color: #c6c6c6;
+    }
+
+    button:disabled {
+      color: #9aa0a6;
+      background-color: #f1f3f4;
+      border-color: #e8eaed;
+      cursor: not-allowed;
+    }
+
+    button.danger {
+      color: #d93025;
+    }
+
+    button.danger:hover:not(:disabled) {
+      background-color: #fce8e6;
+      border-color: #f2b8b5;
+    }
+
+    /* 提示条：进行中 / 错误 / 结果 */
+    .banner {
+      max-width: 1080px;
+      margin: 0 auto 12px;
+      padding: 10px 12px;
+      border-radius: 4px;
+      font-size: 13px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .banner[hidden] {
+      display: none;
+    }
+
+    .banner-busy {
+      background-color: #e8f0fe;
+      color: #1967d2;
+      border: 1px solid #c6dafc;
+    }
+
+    .banner-error {
+      background-color: #fce8e6;
+      color: #c5221f;
+      border: 1px solid #f2b8b5;
+    }
+
+    .banner-result {
+      background-color: #fef7e0;
+      color: #b06000;
+      border: 1px solid #fde293;
+    }
+
+    .banner-text {
+      flex: 1;
+    }
+
+    .banner button {
+      padding: 4px 10px;
+      font-size: 12px;
+    }
+
+    /* 窗口区块 */
+    .window-block {
+      max-width: 1080px;
+      margin: 0 auto 16px;
+      background-color: #fff;
+      border: 1px solid #dadce0;
+      border-radius: 8px;
+      overflow: hidden;
+    }
+
+    .window-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 14px;
+      background-color: #f1f3f4;
+      border-bottom: 1px solid #dadce0;
+    }
+
+    .window-header h2 {
+      font-size: 14px;
+      margin: 0;
+    }
+
+    .window-stat {
+      color: #5f6368;
+      font-size: 12px;
+    }
+
+    .badge {
+      padding: 2px 8px;
+      font-size: 11px;
+      border-radius: 10px;
+      background-color: #e8f0fe;
+      color: #1967d2;
+      border: 1px solid #c6dafc;
+    }
+
+    /* 标签组卡片 */
+    .group-list {
+      padding: 10px 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .group-card {
+      border: 1px solid #e8eaed;
+      border-left-width: 4px;
+      border-radius: 6px;
+      padding: 10px 12px;
+      background-color: #fff;
+    }
+
+    .group-card-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .color-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    .group-name {
+      font-weight: bold;
+      font-size: 14px;
+    }
+
+    .group-count {
+      color: #5f6368;
+      font-size: 12px;
+    }
+
+    .group-state {
+      padding: 1px 6px;
+      font-size: 11px;
+      border-radius: 3px;
+      background-color: #f1f3f4;
+      color: #5f6368;
+    }
+
+    .group-state-collapsed {
+      background-color: #fef7e0;
+      color: #b06000;
+    }
+
+    /* 组内无已打开标签页（如浏览器重启后已保存但未恢复的组） */
+    .group-state-empty {
+      background-color: #f1f3f4;
+      color: #80868b;
+      border: 1px dashed #dadce0;
+    }
+
+    .group-hint {
+      margin: 8px 0 0;
+      padding: 6px 8px;
+      font-size: 12px;
+      color: #80868b;
+      background-color: #fafafa;
+      border-radius: 4px;
+    }
+
+    .group-actions {
+      margin-left: auto;
+      display: flex;
+      gap: 6px;
+    }
+
+    .group-actions button {
+      padding: 4px 10px;
+      font-size: 12px;
+    }
+
+    /* 组内标签页列表 */
+    .tab-list {
+      list-style: none;
+      margin: 8px 0 0;
+      padding: 0;
+    }
+
+    .tab-list[hidden] {
+      display: none;
+    }
+
+    .tab-item {
+      display: grid;
+      grid-template-columns: 24px 1fr 1fr 1fr;
+      align-items: center;
+      column-gap: 8px;
+      padding: 5px 6px;
+      border-bottom: 1px solid #f1f3f4;
+      cursor: pointer;
+      border-radius: 3px;
+    }
+
+    .tab-item:last-child {
+      border-bottom: none;
+    }
+
+    .tab-item:hover {
+      background-color: #f8f9fa;
+    }
+
+    .tab-index {
+      color: #9aa0a6;
+      font-size: 11px;
+      text-align: right;
+    }
+
+    .tab-title {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .tab-host {
+      color: #9aa0a6;
+      font-size: 11px;
+      min-width: 0;
+      text-align: left;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .tab-host-path {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .tab-dormancy {
+      color: #9aa0a6;
+      font-size: 11px;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    /* 空状态 */
+    .empty-state {
+      max-width: 1080px;
+      margin: 0 auto;
+      padding: 48px 16px;
+      text-align: center;
+      color: #5f6368;
+      background-color: #fff;
+      border: 1px dashed #dadce0;
+      border-radius: 8px;
+    }
+
+    /* in-page 二次确认对话框：替代 window.confirm，避免扩展页内 confirm 静默失败 */
+    .confirm-dialog {
+      max-width: 480px;
+      padding: 20px 24px;
+      border: 1px solid #dadce0;
+      border-radius: 8px;
+      background-color: #fff;
+      color: #202124;
+      box-shadow: 0 4px 24px rgba(0, 0, 0, 0.12);
+    }
+
+    .confirm-dialog::backdrop {
+      background-color: rgba(32, 33, 36, 0.45);
+    }
+
+    .confirm-dialog h3 {
+      margin: 0 0 12px;
+      font-size: 16px;
+    }
+
+    .confirm-dialog p {
+      margin: 0 0 16px;
+      font-size: 13px;
+      line-height: 1.6;
+      white-space: pre-wrap;
+      word-break: break-word;
+      color: #3c4043;
+    }
+
+    .confirm-dialog .confirm-dialog-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+    }
+
+    .empty-state[hidden] {
+      display: none;
+    }
+
+    .empty-state p {
+      margin: 4px 0;
+    }
+  </style>
+</head>
+<body>
+  <div class="page-header">
+    <h1>标签组管理</h1>
+    <p>集中管理已存在的标签组：一键展开、排序、解散或关闭。未分组的标签页不会出现在这里，也不会被任何操作影响。</p>
+    <p>注意：“已保存但未点开”的标签组（浏览器重启后需手动点开的那种）不在扩展接口可见范围内，因此不会出现在下方列表中。若希望重启后组仍可管理，请在 <code>chrome://settings/onStartup</code> 选择“继续浏览上次打开的网页”。</p>
+    <p class="page-summary" id="summary">正在读取标签组…</p>
+  </div>
+
+  <div class="toolbar">
+    <span class="toolbar-title">全局操作</span>
+    <button type="button" data-action="expand-all">全部展开</button>
+    <button type="button" data-action="collapse-all">全部折叠</button>
+    <button type="button" data-action="sort-all">全部排序</button>
+    <button type="button" data-action="ungroup-all">全部解散</button>
+    <button type="button" data-action="close-dormant">关闭休眠</button>
+    <button type="button" data-action="close-all" class="danger">全部关闭标签页</button>
+    <button type="button" data-action="refresh">刷新</button>
+  </div>
+
+  <div class="toolbar toolbar-manual">
+    <span class="toolbar-title">手动关闭休眠</span>
+    <span>关闭超过</span>
+    <input type="number" id="manual-close-minutes" min="1" step="1" style="width:60px;margin-left:4px">
+    <span>分钟未活动的标签页</span>
+    <button type="button" data-action="manual-close-dormant">关闭 &gt;N 分钟未活动</button>
+    <div class="mapping-error" id="manual-close-error" style="margin:0 0 0 8px;"></div>
+  </div>
+
+  <div class="banner banner-busy" id="busy-banner" hidden>
+    <span class="banner-text" id="busy-text">正在处理…</span>
+  </div>
+
+  <div class="banner banner-error" id="error-banner" hidden>
+    <span class="banner-text" id="error-text"></span>
+    <button type="button" data-action="retry">重试</button>
+  </div>
+
+  <div class="banner banner-result" id="result-banner" hidden>
+    <span class="banner-text" id="result-text"></span>
+    <button type="button" data-action="dismiss-result">知道了</button>
+  </div>
+
+  <div id="windows-container"></div>
+
+  <div class="empty-state" id="empty-state" hidden>
+    <p><strong>暂无标签组</strong></p>
+    <p>打开至少两个同域名的标签页，或在弹窗中点击"重新整理所有标签页"后再回到这里。</p>
+  </div>
+
+  <dialog id="confirm-dialog" class="confirm-dialog" aria-labelledby="confirm-dialog-title">
+    <h3 id="confirm-dialog-title">请确认</h3>
+    <p id="confirm-dialog-message"></p>
+    <div class="confirm-dialog-actions">
+      <button type="button" data-confirm-action="cancel">取消</button>
+      <button type="button" data-confirm-action="confirm">确认</button>
+    </div>
+  </dialog>
+
+  <script src="common.js"></script>
+  <script src="manager.js"></script>
+</body>
+</html>

@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    body {
+      width: 300px;
+      padding: 20px;
+      font-family: Arial, sans-serif;
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+    }
+    
+    .header {
+      margin-bottom: 20px;
+    }
+    
+    h1 {
+      font-size: 18px;
+      margin-top: 0;
+    }
+    
+    .info {
+      margin-bottom: 15px;
+    }
+    
+    button {
+      width: 100%;
+      padding: 10px;
+      background-color: #4285f4;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      margin-bottom: 10px;
+    }
+    
+    button:hover {
+      background-color: #3367d6;
+    }
+    
+    #close-group-btn {
+      background-color: #ea4335;
+    }
+    
+    #close-group-btn:hover {
+      background-color: #d33a2c;
+    }
+    
+    /* 标签组展示区域 */
+    .groups-container {
+      flex: 1;
+      overflow-y: auto;
+      margin-top: 20px;
+    }
+    
+    .group-tree {
+      list-style: none;
+      padding-left: 0;
+      margin: 0;
+    }
+    
+    .group-item {
+      margin: 5px 0;
+      padding: 8px;
+      background-color: #f5f5f5;
+      border-radius: 4px;
+    }
+    
+    .group-item:hover {
+      background-color: #e0e0e0;
+    }
+    
+    .group-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    
+    .group-title {
+      font-weight: bold;
+      margin-bottom: 5px;
+      flex-grow: 1;
+    }
+    
+    .close-btn {
+      background-color: #ea4335;
+      color: white;
+      border: none;
+      border-radius: 3px;
+      width: 20px;
+      height: 20px;
+      cursor: pointer;
+      font-weight: bold;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    
+    .close-btn:hover {
+      background-color: #d33a2c;
+    }
+    
+    .group-tabs {
+      list-style: none;
+      padding-left: 15px;
+      margin: 0;
+    }
+    
+    .tab-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 4px 0;
+      font-size: 14px;
+      color: #333;
+      border-bottom: 1px solid #eee;
+    }
+    
+    .tab-item:last-child {
+      border-bottom: none;
+    }
+    
+    .tab-title {
+      flex-grow: 1;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    
+    .empty-groups {
+      text-align: center;
+      color: #666;
+      font-style: italic;
+      padding: 10px;
+    }
+    
+    /* 自动分组开关行 */
+    .toggle-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 13px;
+      color: #333;
+      margin-bottom: 10px;
+      cursor: pointer;
+    }
+    
+    .toggle-row input {
+      margin: 0;
+      cursor: pointer;
+    }
+
+    .toggle-row input[type="number"] {
+      width: 60px;
+      margin-left: 8px;
+      padding: 2px 4px;
+      font-size: 13px;
+      border: 1px solid #ccc;
+      border-radius: 3px;
+      cursor: text;
+    }
+
+    /* "无活动自动折叠"行的保存按钮：未保存时 .dirty 加色 */
+    .config-save-btn {
+      width: auto;
+      margin-bottom: 0;
+      padding: 3px 10px;
+      font-size: 12px;
+      color: #1a73e8;
+      background-color: #fff;
+      border: 1px solid #dadce0;
+      border-radius: 3px;
+    }
+
+    .config-save-btn:hover:not(:disabled) {
+      background-color: #f1f3f4;
+    }
+
+    .config-save-btn.dirty {
+      color: #fff;
+      background-color: #1a73e8;
+      border-color: #1a73e8;
+    }
+
+    .config-save-btn.dirty:hover:not(:disabled) {
+      background-color: #1765cc;
+    }
+    
+    /* 域名映射配置区 */
+    .mapping-form {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      margin-bottom: 8px;
+    }
+    
+    .mapping-form input {
+      padding: 6px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      font-size: 13px;
+    }
+    
+    .mapping-error {
+      color: #ea4335;
+      font-size: 12px;
+      display: none;
+    }
+    
+    .mapping-actions {
+      display: flex;
+      gap: 6px;
+      margin: 8px 0;
+    }
+    
+    .mapping-actions button {
+      flex: 1;
+      margin-bottom: 0;
+      background-color: #5f6368;
+    }
+    
+    .mapping-actions button:hover {
+      background-color: #4d5156;
+    }
+    
+    .mapping-list {
+      list-style: none;
+      padding-left: 0;
+      margin: 0;
+    }
+    
+    .mapping-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 4px 0;
+      font-size: 13px;
+      border-bottom: 1px solid #eee;
+    }
+    
+    .mapping-item:last-child {
+      border-bottom: none;
+    }
+    
+    .mapping-text {
+      flex-grow: 1;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    
+    .empty-mappings {
+      color: #666;
+      font-style: italic;
+      font-size: 12px;
+      padding: 4px 0;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>Tab Group Manager</h1>
+    <div class="info">
+      <p>此扩展会根据域名自动将标签页分组。</p>
+      <p>例如：所有 alibaba-inc.com 的标签页会被归类到同一个组中。</p>
+    </div>
+    <label class="toggle-row">
+      <input type="checkbox" id="auto-grouping-toggle" checked>
+      <span>自动分组</span>
+    </label>
+    <label class="toggle-row">
+      <input type="checkbox" id="auto-collapse-toggle" checked>
+      <span>无活动自动折叠</span>
+      <input type="number" id="auto-collapse-minutes" min="1" step="1" style="width:60px;margin-left:8px">
+      <span>分钟</span>
+      <button type="button" id="auto-collapse-save" class="config-save-btn" style="margin-left:6px;padding:3px 10px;font-size:12px;">保存</button>
+    </label>
+    <div class="mapping-error" id="auto-collapse-error" style="margin-bottom:10px;"></div>
+    <label class="toggle-row">
+      <input type="checkbox" id="auto-close-toggle">
+      <span>自动关闭休眠</span>
+      <input type="number" id="auto-close-minutes" min="1" step="1" style="width:60px;margin-left:8px">
+      <span>分钟</span>
+    </label>
+    <div class="mapping-error" id="auto-close-error" style="margin-bottom:10px;"></div>
+    <button id="open-manager-btn">标签组管理</button>
+    <button id="organize">重新整理所有标签页</button>
+    <button id="sort-tabs-btn">排序标签页</button>
+    <button id="close-group-btn">关闭所有标签页分组</button>
+  </div>
+  
+  <div class="mapping-section">
+    <h2>域名映射</h2>
+    <div class="mapping-form">
+      <input type="text" id="mapping-domain" placeholder="域名，如 code.alibaba-inc.com">
+      <input type="text" id="mapping-label" placeholder="标签名，如 代码仓库">
+      <button id="add-mapping-btn">添加映射</button>
+      <div class="mapping-error" id="mapping-error"></div>
+    </div>
+    <div class="mapping-actions">
+      <button id="export-mappings-btn">导出</button>
+      <button id="import-mappings-btn">导入</button>
+      <input type="file" id="import-file-input" accept=".json,application/json" style="display: none;">
+    </div>
+    <div id="mapping-list">
+      <div class="empty-mappings">暂无映射规则，默认按域名分组</div>
+    </div>
+  </div>
+  
+  <div class="groups-container">
+    <h2>标签组</h2>
+    <div id="groups-list">
+      <div class="empty-groups">暂无标签组</div>
+    </div>
+  </div>
+  
+  <script src="common.js"></script>
+  <script src="popup.js"></script>
+</body>
+</html>

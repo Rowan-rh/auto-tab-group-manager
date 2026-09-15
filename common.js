@@ -1,0 +1,158 @@
+// common.js
+// 前端页面（popup.html / manager.html）共享的工具函数与常量。
+// 浏览器环境挂到全局以保持既有裸函数调用方式；Node 环境额外导出供单测使用。
+// 注意：background.js（service worker）本次不接入本文件，其平行实现保持不动。
+(function (root, factory) {
+  'use strict';
+  var api = factory();
+  Object.assign(root, api);
+  if (typeof module !== 'undefined' && module.exports) {
+    module.exports = api;
+  }
+})(typeof globalThis !== 'undefined' ? globalThis : this, function () {
+  'use strict';
+
+  // 标题本地化排序使用的 locale（中文按拼音序）
+  var COLLATOR_LOCALE = 'zh-Hans-CN';
+
+  // 标签组颜色枚举到 CSS 颜色的映射，与 Chrome 标签条观感对齐
+  var GROUP_COLOR_CSS = {
+    grey: '#5f6368',
+    blue: '#1a73e8',
+    red: '#d93025',
+    yellow: '#f9ab00',
+    green: '#188038',
+    pink: '#d01884',
+    purple: '#a142f4',
+    cyan: '#007b83'
+  };
+
+  // 兜底色：组颜色不在枚举内时使用
+  var FALLBACK_GROUP_COLOR_CSS = '#5f6368';
+
+  // 取组颜色对应的 CSS 色值
+  function groupColorCss(color) {
+    return GROUP_COLOR_CSS[color] || FALLBACK_GROUP_COLOR_CSS;
+  }
+
+  // 重试异步操作，处理"Tabs cannot be edited right now"错误
+  // 拖动标签页可能持续数秒，使用带随机抖动的指数退避（上限 2 秒），重试窗口约 10 秒
+  async function retryAsyncOperation(operation, maxRetries = 10, delay = 300) {
+    for (let i = 0; i < maxRetries; i++) {
+      try {
+        return await operation();
+      } catch (error) {
+        const isTabBusy = error && typeof error.message === 'string' &&
+          error.message.includes('Tabs cannot be edited right now');
+        if (isTabBusy && i < maxRetries - 1) {
+          const backoff = Math.min(delay * Math.pow(1.6, i), 2000);
+          const jitter = Math.random() * 200;
+          await new Promise(resolve => setTimeout(resolve, backoff + jitter));
+        } else {
+          // 非该错误或已是最后一次尝试，抛出交由调用方处理
+          throw error;
+        }
+      }
+    }
+  }
+
+  // 标签页标题比较器：标题本地化升序 → URL 字典序 → 返回 0（交由 sort 稳定性保持原有相对顺序）
+  function compareTabTitle(a, b) {
+    const byTitle = String(a.title || '').localeCompare(String(b.title || ''), COLLATOR_LOCALE);
+    if (byTitle !== 0) {
+      return byTitle;
+    }
+    const urlA = String(a.url || '');
+    const urlB = String(b.url || '');
+    if (urlA !== urlB) {
+      return urlA < urlB ? -1 : 1;
+    }
+    return 0;
+  }
+
+  // 标签组标题比较器：组标题本地化升序 → 组内标签页数量降序 → 原有相对顺序
+  // 入参形如 { title, tabCount, order }
+  function compareGroupTitle(a, b) {
+    const byTitle = String(a.title || '').localeCompare(String(b.title || ''), COLLATOR_LOCALE);
+    if (byTitle !== 0) {
+      return byTitle;
+    }
+    const byCount = (Number(b.tabCount) || 0) - (Number(a.tabCount) || 0);
+    if (byCount !== 0) {
+      return byCount;
+    }
+    return (Number(a.order) || 0) - (Number(b.order) || 0);
+  }
+
+  // 按标签条位置（index）升序复制标签页数组
+  function sortTabsByIndex(tabs) {
+    return (tabs || []).slice().sort((a, b) => a.index - b.index);
+  }
+
+  // 计算单个标签组的"组内排序"移动计划（纯函数）
+  // 返回 null 表示无需移动（标签页不足 2 个，或已处于目标顺序），调用方据此短路
+  function buildGroupSortMove(group) {
+    const tabs = sortTabsByIndex(group && group.tabs);
+    if (tabs.length < 2) {
+      return null;
+    }
+    const currentIds = tabs.map(t => t.id);
+    const sortedIds = tabs.slice().sort(compareTabTitle).map(t => t.id);
+    if (sortedIds.every((id, i) => id === currentIds[i])) {
+      return null;
+    }
+    return { tabIds: sortedIds, index: tabs[0].index };
+  }
+
+  // 计算单个窗口的"全部排序"移动计划（纯函数）
+  // 组之间按标题排序、组内按标题排序，从窗口内最靠左的分组标签页位置起依次紧凑排列。
+  // 未分组标签页不进入计划，因此不会被排序、解散或关闭，其相互先后顺序保持不变。
+  // 返回的移动必须按数组顺序从左到右依次执行。
+  function buildWindowSortPlan(groups) {
+    const normalized = (groups || [])
+      .map((group, order) => ({
+        title: group.title || '',
+        tabs: sortTabsByIndex(group.tabs),
+        order: order
+      }))
+      .filter(group => group.tabs.length > 0);
+
+    if (normalized.length === 0) {
+      return [];
+    }
+
+    const startIndex = normalized.reduce((min, group) => Math.min(min, group.tabs[0].index), Infinity);
+    if (!Number.isFinite(startIndex)) {
+      return [];
+    }
+
+    const ordered = normalized.slice().sort((a, b) => compareGroupTitle(
+      { title: a.title, tabCount: a.tabs.length, order: a.order },
+      { title: b.title, tabCount: b.tabs.length, order: b.order }
+    ));
+
+    const moves = [];
+    let nextIndex = startIndex;
+    for (const group of ordered) {
+      const sortedTabs = group.tabs.slice().sort(compareTabTitle);
+      moves.push({
+        tabIds: sortedTabs.map(t => t.id),
+        index: nextIndex
+      });
+      nextIndex += sortedTabs.length;
+    }
+    return moves;
+  }
+
+  return {
+    COLLATOR_LOCALE: COLLATOR_LOCALE,
+    GROUP_COLOR_CSS: GROUP_COLOR_CSS,
+    groupColorCss: groupColorCss,
+    retryAsyncOperation: retryAsyncOperation,
+    compareTabTitle: compareTabTitle,
+    compareGroupTitle: compareGroupTitle,
+    sortTabsByIndex: sortTabsByIndex,
+    buildGroupSortMove: buildGroupSortMove,
+    buildWindowSortPlan: buildWindowSortPlan
+  };
+});

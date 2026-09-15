@@ -1,0 +1,4 @@
+schema: spec-driven
+created: 2026-09-07
+# 纯实现 bugfix：恢复对既有 manual-dormancy-close 契约的符合性，无 spec 级行为变化
+skip_specs: true
