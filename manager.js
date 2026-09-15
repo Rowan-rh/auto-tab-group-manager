@@ -588,6 +588,16 @@
   function buildTabList(groupTabs) {
     const list = document.createElement('ul');
     list.className = 'tab-list';
+    if (groupTabs.length > 0) {
+      const header = document.createElement('li');
+      header.className = 'tab-item tab-head';
+      ['', '页面', '路径', '休眠'].forEach((label) => {
+        const cell = document.createElement('span');
+        cell.textContent = label;
+        header.appendChild(cell);
+      });
+      list.appendChild(header);
+    }
     groupTabs.forEach((tab, position) => {
       list.appendChild(buildTabItem(tab, position + 1));
     });
