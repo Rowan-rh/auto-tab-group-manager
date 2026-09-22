@@ -29,6 +29,8 @@ const LAST_ACTIVATED_KEY = 'lastActivatedAt';
 const lastActivatedByTabId = new Map();
 // 串行化 session 写入，避免并发 set 以旧快照覆盖新状态
 let persistLastActivatedQueue = Promise.resolve();
+// 初始化屏障：事件处理必须先合并已有 session 记录，避免用不完整快照覆盖存储。
+let lastActivatedReady;
 
 // 从 chrome.storage.session 加载时间表到内存
 async function loadLastActivated() {
@@ -73,6 +75,7 @@ function persistLastActivated() {
 
 // 记录标签页的最近激活时间；缺值时按 lastAccessed / 0 回退
 async function recordActivation(tabId) {
+  await lastActivatedReady;
   let tab;
   try {
     tab = await chrome.tabs.get(tabId);
@@ -93,9 +96,10 @@ async function recordActivation(tabId) {
 }
 
 // 清理已关闭标签页的条目
-function forgetTab(tabId) {
+async function forgetTab(tabId) {
+  await lastActivatedReady;
   if (lastActivatedByTabId.delete(tabId)) {
-    persistLastActivated();
+    await persistLastActivated();
   }
 }
 
@@ -276,11 +280,38 @@ chrome.alarms.onAlarm.addListener((alarm) => {
 });
 
 // 启动时：加载时间表 + 重建 alarm
-loadLastActivated();
+lastActivatedReady = loadLastActivated();
 ensureInactivityAlarm();
 
+// 同一窗口内的自动分组串行执行，避免多个事件同时完成“查无目标组 → 新建组”。
+const groupTabQueuesByWindow = new Map();
+
 // 将标签页按域名分组的主要函数
-async function groupTab(tab) {
+function groupTab(tab) {
+  if (!tab || !Number.isFinite(tab.windowId)) {
+    return Promise.resolve();
+  }
+  const windowId = tab.windowId;
+  const previous = groupTabQueuesByWindow.get(windowId) || Promise.resolve();
+  const current = previous
+    .catch(() => {})
+    .then(() => groupTabOnce(tab))
+    .finally(() => {
+      if (groupTabQueuesByWindow.get(windowId) === current) {
+        groupTabQueuesByWindow.delete(windowId);
+      }
+    });
+  groupTabQueuesByWindow.set(windowId, current);
+  return current;
+}
+
+async function groupTabOnce(tab) {
+  // 排队期间标签可能已关闭、导航或移到其他窗口；以执行时状态为准。
+  try {
+    tab = await chrome.tabs.get(tab.id);
+  } catch (error) {
+    return;
+  }
   // 忽略特殊页面（如chrome://, about:, 等）
   if (!tab.url || !tab.url.startsWith('http')) {
     return;

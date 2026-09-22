@@ -975,13 +975,8 @@
   // 取标签页最近激活时间：session 缓存 → tab.lastAccessed → 0（数据完全缺失）
   function lastActivatedFor(tab) {
     const fromSession = lastActivatedCache[tab.id];
-    if (Number.isFinite(fromSession) && fromSession > 0) {
-      return fromSession;
-    }
-    if (tab && Number.isFinite(tab.lastAccessed) && tab.lastAccessed > 0) {
-      return tab.lastAccessed;
-    }
-    return 0;
+    const fromTab = tab && tab.lastAccessed;
+    return latestActivationTimestamp(fromSession, fromTab);
   }
 
   // 把命中标签页格式化为确认框预览行：'组标题：标签页标题'，过长截断
@@ -1091,12 +1086,32 @@
       return;
     }
 
+    // 确认框打开期间标签状态可能已变化。删除前刷新缓存并逐项读取当前状态。
+    await refreshLastActivatedCache();
+    const revalidatedHits = [];
+    const revalidateNow = Date.now();
+    for (const hit of hits) {
+      try {
+        const currentTab = await chrome.tabs.get(hit.tab.id);
+        const sessionTimestamp = lastActivatedCache[currentTab.id];
+        if (isDormantCandidateStillValid(hit.tab, currentTab, sessionTimestamp, idleThresholdMs, revalidateNow)) {
+          revalidatedHits.push({ groupId: hit.groupId, groupTitle: hit.groupTitle, tab: currentTab });
+        }
+      } catch (error) {
+        // 标签已关闭或不可访问时视为状态变化，不再处理。
+      }
+    }
+    if (revalidatedHits.length === 0) {
+      showResult('候选标签状态已变化，没有标签页被关闭');
+      return;
+    }
+
     // 串行 remove：失败累积、不中断其余、不回滚
     const failures = [];
     let closed = 0;
     await runExclusive('正在关闭休眠标签页…', async () => {
       const byGroup = new Map();
-      for (const h of hits) {
+      for (const h of revalidatedHits) {
         if (!byGroup.has(h.groupId)) {
           byGroup.set(h.groupId, { title: h.groupTitle, ids: [] });
         }
@@ -1239,7 +1254,7 @@
   function relativeActivated(tab) {
     const fromSession = lastActivatedCache[tab.id];
     const fromTab = tab && Number.isFinite(tab.lastAccessed) && tab.lastAccessed > 0 ? tab.lastAccessed : 0;
-    const ts = Number.isFinite(fromSession) ? fromSession : fromTab;
+    const ts = latestActivationTimestamp(fromSession, fromTab);
     if (!ts) {
       return '未知';
     }
@@ -1266,7 +1281,7 @@
   function formatDormancy(tab) {
     const fromSession = lastActivatedCache[tab.id];
     const fromTab = tab && Number.isFinite(tab.lastAccessed) && tab.lastAccessed > 0 ? tab.lastAccessed : 0;
-    const ts = Number.isFinite(fromSession) ? fromSession : fromTab;
+    const ts = latestActivationTimestamp(fromSession, fromTab);
     if (!ts) {
       return '未知';
     }
