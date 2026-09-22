@@ -144,6 +144,29 @@
     return moves;
   }
 
+  // 合并扩展 session 记录与 Chrome 原生 lastAccessed，始终采用较新的有效值。
+  function latestActivationTimestamp(sessionTimestamp, tabLastAccessed) {
+    const sessionTs = Number.isFinite(sessionTimestamp) && sessionTimestamp > 0 ? sessionTimestamp : 0;
+    const chromeTs = Number.isFinite(tabLastAccessed) && tabLastAccessed > 0 ? tabLastAccessed : 0;
+    return Math.max(sessionTs, chromeTs);
+  }
+
+  // 确认后重新校验休眠候选项；状态、归属或页面发生变化时均跳过。
+  function isDormantCandidateStillValid(originalTab, currentTab, sessionTimestamp, thresholdMs, now) {
+    if (!originalTab || !currentTab || currentTab.active ||
+        currentTab.groupId !== originalTab.groupId || currentTab.url !== originalTab.url) {
+      return false;
+    }
+    const ts = latestActivationTimestamp(sessionTimestamp, currentTab.lastAccessed);
+    return Number.isFinite(thresholdMs) && thresholdMs > 0 && ts > 0 && now - ts >= thresholdMs;
+  }
+
+  // Chrome storage.sync 的单项配额按 key 长度 + JSON 序列化后的 value 的 UTF-8 字节数计算。
+  function storageItemByteLength(key, value) {
+    const serialized = String(key || '') + JSON.stringify(value);
+    return new TextEncoder().encode(serialized).length;
+  }
+
   return {
     COLLATOR_LOCALE: COLLATOR_LOCALE,
     GROUP_COLOR_CSS: GROUP_COLOR_CSS,
@@ -153,6 +176,9 @@
     compareGroupTitle: compareGroupTitle,
     sortTabsByIndex: sortTabsByIndex,
     buildGroupSortMove: buildGroupSortMove,
-    buildWindowSortPlan: buildWindowSortPlan
+    buildWindowSortPlan: buildWindowSortPlan,
+    latestActivationTimestamp: latestActivationTimestamp,
+    isDormantCandidateStillValid: isDormantCandidateStillValid,
+    storageItemByteLength: storageItemByteLength
   };
 });

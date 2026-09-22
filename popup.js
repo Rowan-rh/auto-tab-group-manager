@@ -142,8 +142,10 @@ document.addEventListener('DOMContentLoaded', function() {
   // 排序标签页按钮事件监听器
   sortTabsButton.addEventListener('click', async () => {
     try {
-      await sortAllTabs();
-      sortTabsButton.textContent = '排序完成!';
+      const result = await sortAllTabs();
+      sortTabsButton.textContent = result.failed === 0
+        ? '排序完成!'
+        : (result.succeeded === 0 ? '排序失败' : '部分完成');
       setTimeout(() => {
         sortTabsButton.textContent = '排序标签页';
       }, 2000);
@@ -159,6 +161,7 @@ document.addEventListener('DOMContentLoaded', function() {
   
   organizeButton.addEventListener('click', async () => {
     try {
+      const result = { attempted: 0, succeeded: 0, failed: 0 };
       // 获取所有标签页
       const tabs = await chrome.tabs.query({});
       
@@ -197,6 +200,7 @@ document.addEventListener('DOMContentLoaded', function() {
       for (const [windowId, titles] of windowTitleMap) {
         for (const [title, tabIds] of titles) {
           if (tabIds.length > 1) { // 只有当同标题有多个标签页时才创建组
+            result.attempted++;
             try {
               // 检查当前窗口内是否已经存在该标题的组
               const groups = await chrome.tabGroups.query({ windowId: Number(windowId) });
@@ -220,15 +224,18 @@ document.addEventListener('DOMContentLoaded', function() {
                   color: getColorForTitle(title)
                 }));
               }
+              result.succeeded++;
             } catch (e) {
+              result.failed++;
               console.error('Error grouping tabs for title:', title, e);
             }
           }
         }
       }
       
-      // 显示操作成功的消息
-      organizeButton.textContent = '整理完成!';
+      organizeButton.textContent = result.failed === 0
+        ? '整理完成!'
+        : (result.succeeded === 0 ? '整理失败' : '部分完成');
       setTimeout(() => {
         organizeButton.textContent = '重新整理所有标签页';
       }, 2000);
@@ -247,6 +254,7 @@ document.addEventListener('DOMContentLoaded', function() {
   // 关闭所有标签页分组按钮事件监听器
   closeGroupButton.addEventListener('click', async () => {
     try {
+      const result = { attempted: 0, succeeded: 0, failed: 0 };
       // 获取所有标签组
       const groups = await chrome.tabGroups.query({});
       
@@ -258,15 +266,19 @@ document.addEventListener('DOMContentLoaded', function() {
           
           // 将组中的标签页取消分组
           if (tabsInGroup.length > 0) {
+            result.attempted++;
             await retryAsyncOperation(() => chrome.tabs.ungroup(tabsInGroup.map(tab => tab.id)));
+            result.succeeded++;
           }
         } catch (e) {
+          result.failed++;
           console.error('Error ungrouping tabs for group:', group, e);
         }
       }
       
-      // 显示操作成功的消息
-      closeGroupButton.textContent = '关闭完成!';
+      closeGroupButton.textContent = result.failed === 0
+        ? '关闭完成!'
+        : (result.succeeded === 0 ? '关闭失败' : '部分完成');
       setTimeout(() => {
         closeGroupButton.textContent = '关闭所有标签页分组';
       }, 2000);
@@ -289,8 +301,12 @@ document.addEventListener('DOMContentLoaded', function() {
     const domain = domainInput.value.trim().toLowerCase();
     const label = labelInput.value.trim();
     
-    // 校验输入：非空且域名为合法主机名格式
-    if (!domain || !label || !DOMAIN_PATTERN.test(domain)) {
+    // 校验输入：非空、域名合法且标签长度受控
+    if (!domain || !label || !DOMAIN_PATTERN.test(domain) || label.length > MAX_MAPPING_LABEL_LENGTH) {
+      if (label.length > MAX_MAPPING_LABEL_LENGTH) {
+        showMappingError(`标签名不能超过 ${MAX_MAPPING_LABEL_LENGTH} 个字符`);
+        return;
+      }
       showMappingError(!domain || !label ? '域名和标签名均不能为空' : '域名格式不合法，如 code.alibaba-inc.com');
       return;
     }
@@ -312,7 +328,7 @@ document.addEventListener('DOMContentLoaded', function() {
       loadDomainMappings();
     } catch (error) {
       console.error('Error adding mapping:', error);
-      showMappingError('保存映射失败');
+      showMappingError(error.message || '保存映射失败');
     }
   });
   
@@ -352,6 +368,9 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     
     try {
+      if (file.size > MAX_MAPPING_IMPORT_FILE_BYTES) {
+        throw new Error('导入失败：文件不能超过 1 MB');
+      }
       const text = await file.text();
       const imported = parseMappingsFile(text);
       
@@ -392,13 +411,17 @@ document.addEventListener('DOMContentLoaded', function() {
 // 对所有窗口独立执行标签页排序
 async function sortAllTabs() {
   const windows = await chrome.windows.getAll();
+  const result = { attempted: windows.length, succeeded: 0, failed: 0 };
   for (const win of windows) {
     try {
       await sortTabsInWindow(win.id);
+      result.succeeded++;
     } catch (error) {
+      result.failed++;
       console.error('Error sorting tabs in window:', win.id, error);
     }
   }
+  return result;
 }
 
 // 单个窗口内排序：有组标签在前（组按标题、组内按页面标题），无组标签保持原相对顺序在后，pinned 不动
@@ -441,12 +464,17 @@ async function sortTabsInWindow(windowId) {
   
   // 起始位置 = 固定标签数量，按目标顺序逐个移动；单个失败不中断整体流程
   const startIndex = tabs.filter(t => t.pinned).length;
+  let failedMoves = 0;
   for (let i = 0; i < ordered.length; i++) {
     try {
       await retryAsyncOperation(() => chrome.tabs.move(ordered[i].id, { index: startIndex + i }));
     } catch (error) {
+      failedMoves++;
       console.error('Error moving tab:', ordered[i].id, error);
     }
+  }
+  if (failedMoves > 0) {
+    throw new Error(`${failedMoves} 个标签页移动失败`);
   }
 }
 
@@ -610,6 +638,9 @@ function getColorForTitle(title) {
 
 // 域名格式校验正则（合法主机名或 *.suffix 通配符，如 code.alibaba-inc.com / *.alibaba-inc.com）
 const DOMAIN_PATTERN = /^(\*\.)?([a-z0-9]([a-z0-9-]*[a-z0-9])?\.)+[a-z]{2,}$/;
+const MAX_MAPPING_LABEL_LENGTH = 100;
+const MAX_MAPPING_IMPORT_FILE_BYTES = 1024 * 1024;
+const DOMAIN_MAPPINGS_STORAGE_KEY = 'domainMappings';
 
 // 解析导入的 JSON 文本：整体结构非法时抛错（不改变现有规则），非法条目被过滤
 function parseMappingsFile(text) {
@@ -633,6 +664,9 @@ function parseMappingsFile(text) {
     }
     const domain = typeof entry.domain === 'string' ? entry.domain.trim().toLowerCase() : '';
     const label = typeof entry.label === 'string' ? entry.label.trim() : '';
+    if (label.length > MAX_MAPPING_LABEL_LENGTH) {
+      throw new Error(`导入失败：标签名不能超过 ${MAX_MAPPING_LABEL_LENGTH} 个字符`);
+    }
     if (!domain || !label || !DOMAIN_PATTERN.test(domain)) {
       continue;
     }
@@ -655,6 +689,13 @@ async function getDomainMappings() {
 
 // 保存域名映射规则
 async function saveDomainMappings(mappings) {
+  const quota = Number.isFinite(chrome.storage.sync.QUOTA_BYTES_PER_ITEM)
+    ? chrome.storage.sync.QUOTA_BYTES_PER_ITEM
+    : 8192;
+  const bytes = storageItemByteLength(DOMAIN_MAPPINGS_STORAGE_KEY, mappings);
+  if (bytes > quota) {
+    throw new Error(`映射规则占用 ${bytes} 字节，超过 Chrome 同步存储单项上限 ${quota} 字节`);
+  }
   await chrome.storage.sync.set({ domainMappings: mappings });
 }
 

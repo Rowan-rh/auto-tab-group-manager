@@ -7,7 +7,10 @@ const {
   compareTabTitle,
   compareGroupTitle,
   buildGroupSortMove,
-  buildWindowSortPlan
+  buildWindowSortPlan,
+  latestActivationTimestamp,
+  isDormantCandidateStillValid,
+  storageItemByteLength
 } = require('../common.js');
 
 let passed = 0;
@@ -30,6 +33,30 @@ function assertDeepEqual(actual, expected, message) {
 function tab(id, title, index, url) {
   return { id: id, title: title, index: index, url: url || 'https://example.com/' + id };
 }
+
+// ===== reliability helpers =====
+
+(function testLatestActivationTimestampUsesNewestSource() {
+  assert(latestActivationTimestamp(1000, 2000) === 2000, 'Chrome lastAccessed 更新时采用较新时间');
+  assert(latestActivationTimestamp(3000, 2000) === 3000, 'session 记录更新时采用较新时间');
+  assert(latestActivationTimestamp(NaN, 0) === 0, '无有效活动时间时返回 0');
+})();
+
+(function testDormantCandidateRevalidation() {
+  const now = 10_000;
+  const original = { id: 1, groupId: 2, url: 'https://example.com/a' };
+  const dormant = { ...original, active: false, lastAccessed: 1_000 };
+  assert(isDormantCandidateStillValid(original, dormant, 2_000, 5_000, now), '状态未变且超过阈值时保留候选');
+  assert(!isDormantCandidateStillValid(original, { ...dormant, active: true }, 2_000, 5_000, now), '确认期间激活后跳过候选');
+  assert(!isDormantCandidateStillValid(original, { ...dormant, lastAccessed: 9_000 }, 2_000, 5_000, now), '较新的 lastAccessed 阻止误关');
+  assert(!isDormantCandidateStillValid(original, { ...dormant, url: 'https://example.com/b' }, 2_000, 5_000, now), '确认期间导航后跳过候选');
+})();
+
+(function testStorageItemByteLengthUsesUtf8() {
+  const ascii = storageItemByteLength('k', ['a']);
+  const chinese = storageItemByteLength('k', ['中']);
+  assert(chinese > ascii, '存储容量按 UTF-8 字节而非字符数计算');
+})();
 
 // ===== compareTabTitle =====
 
