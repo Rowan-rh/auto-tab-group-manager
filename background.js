@@ -1,3 +1,5 @@
+importScripts('common.js');
+
 // 监听标签页更新事件
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
   // 只在标签页完全加载时处理
@@ -318,16 +320,20 @@ async function groupTabOnce(tab) {
   }
 
   // 自动分组总开关关闭时不执行自动分组（手动整理不受影响）
-  const { autoGroupingEnabled = true } = await chrome.storage.sync.get('autoGroupingEnabled');
+  const {
+    autoGroupingEnabled = true,
+    domainGroupingMode = DOMAIN_GROUPING_MODES.REGISTRABLE_DOMAIN
+  } = await chrome.storage.sync.get(['autoGroupingEnabled', 'domainGroupingMode']);
   if (!autoGroupingEnabled) {
     return;
   }
 
   try {
-    // 提取域名，并根据映射规则解析组标题（命中映射用标签名，否则用域名）
+    // 提取域名，并根据映射规则与用户选项解析组标题。
     const url = new URL(tab.url);
     const domain = url.hostname;
-    const groupTitle = await resolveGroupTitle(domain);
+    const mappings = await getDomainMappings();
+    const groupTitle = resolveGroupTitleSync(domain, mappings, domainGroupingMode);
     
     // 获取当前标签页所属的组（如果有）
     let currentGroup = null;
@@ -368,11 +374,10 @@ async function groupTabOnce(tab) {
     if (targetGroupId === null) {
       // 只有当目标标题在同一窗口内有多个标签页时才创建组（同标签名可能覆盖多个域名）
       const tabs = await chrome.tabs.query({ windowId: tab.windowId });
-      const mappings = await getDomainMappings();
       const titleTabs = tabs.filter(t => {
         try {
           const tabUrl = new URL(t.url);
-          return resolveGroupTitleSync(tabUrl.hostname, mappings) === groupTitle;
+          return resolveGroupTitleSync(tabUrl.hostname, mappings, domainGroupingMode) === groupTitle;
         } catch (e) {
           return false;
         }
@@ -419,33 +424,6 @@ function getColorForTitle(title) {
 async function getDomainMappings() {
   const { domainMappings = [] } = await chrome.storage.sync.get('domainMappings');
   return domainMappings;
-}
-
-// 同步解析域名对应的组标题（精确匹配优先；通配符命中时取后缀最长即最具体的规则；未命中回退为域名本身）
-function resolveGroupTitleSync(domain, mappings) {
-  const exact = mappings.find(m => m.domain === domain);
-  if (exact) {
-    return exact.label;
-  }
-  let best = null;
-  for (const m of mappings) {
-    if (m.domain.startsWith('*.')) {
-      const suffix = m.domain.slice(1); // 如 '.alibaba-inc.com'
-      // 仅匹配子域（需存在子域前缀），主域本身不被通配符规则覆盖
-      if (domain.endsWith(suffix) && domain.length > suffix.length) {
-        if (!best || m.domain.length > best.domain.length) {
-          best = m;
-        }
-      }
-    }
-  }
-  return best ? best.label : domain;
-}
-
-// 异步解析域名对应的组标题
-async function resolveGroupTitle(domain) {
-  const mappings = await getDomainMappings();
-  return resolveGroupTitleSync(domain, mappings);
 }
 
 // 重试异步操作，处理"Tabs cannot be edited right now"错误

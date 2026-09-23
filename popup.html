@@ -226,6 +226,33 @@
       cursor: text;
     }
 
+    .toggle-row select {
+      max-width: 180px;
+      margin-left: auto;
+      padding: 6px 8px;
+      color: var(--ink);
+      background: #f7fbf8;
+      border: 1px solid #b8ddd0;
+      border-radius: 7px;
+      font: 700 11px/1.2 "Avenir Next", "PingFang SC", sans-serif;
+      cursor: pointer;
+    }
+
+    .toggle-row select:focus {
+      outline: none;
+      border-color: var(--teal);
+      box-shadow: 0 0 0 3px rgba(13, 130, 120, 0.12);
+    }
+
+    .grouping-mode-hint {
+      position: relative;
+      z-index: 1;
+      margin: -4px 0 10px 22px;
+      color: #91b9b0;
+      font-size: 10px;
+      line-height: 1.45;
+    }
+
     .toggle-row .config-save-btn {
       width: auto;
       min-height: 28px;
@@ -444,12 +471,20 @@
     <h1>Tab Group Manager</h1>
     <div class="info">
       <p>此扩展会根据域名自动将标签页分组。</p>
-      <p>例如：所有 alibaba-inc.com 的标签页会被归类到同一个组中。</p>
+      <p>默认按主域名归组，例如 www.bilibili.com 与 search.bilibili.com 都归入 bilibili.com。</p>
     </div>
     <label class="toggle-row">
       <input type="checkbox" id="auto-grouping-toggle" checked>
       <span>自动分组</span>
     </label>
+    <label class="toggle-row">
+      <span>域名分组方式</span>
+      <select id="domain-grouping-mode" aria-label="域名分组方式">
+        <option value="registrable-domain">按主域名（推荐）</option>
+        <option value="full-hostname">按完整域名</option>
+      </select>
+    </label>
+    <p class="grouping-mode-hint">更改后点击“重新整理所有标签页”可应用到现有标签页。</p>
     <label class="toggle-row">
       <input type="checkbox" id="auto-collapse-toggle" checked>
       <span>无活动自动折叠</span>

@@ -1,7 +1,6 @@
 // common.js
-// 前端页面（popup.html / manager.html）共享的工具函数与常量。
+// 前端页面与 service worker 共享的工具函数与常量。
 // 浏览器环境挂到全局以保持既有裸函数调用方式；Node 环境额外导出供单测使用。
-// 注意：background.js（service worker）本次不接入本文件，其平行实现保持不动。
 (function (root, factory) {
   'use strict';
   var api = factory();
@@ -30,9 +29,71 @@
   // 兜底色：组颜色不在枚举内时使用
   var FALLBACK_GROUP_COLOR_CSS = '#5f6368';
 
+  // 域名分组模式的持久化值；缺省采用可注册域名（如 bilibili.com）。
+  var DOMAIN_GROUPING_MODES = {
+    REGISTRABLE_DOMAIN: 'registrable-domain',
+    FULL_HOSTNAME: 'full-hostname'
+  };
+
+  // 常见双标签公共后缀。常见的一般后缀（如 .com、.org、.cn）无需特殊处理。
+  var MULTI_LABEL_PUBLIC_SUFFIXES = new Set([
+    'ac.jp', 'ac.nz', 'ac.uk', 'asn.au', 'co.in', 'co.jp', 'co.kr', 'co.nz', 'co.uk',
+    'com.ar', 'com.au', 'com.br', 'com.cn', 'com.hk', 'com.mx', 'com.my', 'com.ph',
+    'com.sg', 'com.tr', 'com.tw', 'com.vn', 'edu.au', 'edu.cn', 'edu.hk', 'edu.sg',
+    'firm.in', 'gen.in', 'go.jp', 'gov.au', 'gov.cn', 'gov.hk', 'gov.in', 'gov.uk',
+    'govt.nz', 'id.au', 'idv.hk', 'ind.in', 'net.au', 'net.br', 'net.cn', 'net.hk',
+    'net.in', 'net.kr', 'net.my', 'net.nz', 'net.ph', 'net.sg', 'net.uk', 'net.vn',
+    'ne.jp', 'ne.kr', 'or.jp', 'or.kr', 'org.au', 'org.br', 'org.cn', 'org.hk',
+    'org.in', 'org.kr', 'org.my', 'org.nz', 'org.ph', 'org.sg', 'org.uk', 'org.vn',
+    'plc.uk', 're.kr', 'sch.uk', 'school.nz'
+  ]);
+
   // 取组颜色对应的 CSS 色值
   function groupColorCss(color) {
     return GROUP_COLOR_CSS[color] || FALLBACK_GROUP_COLOR_CSS;
+  }
+
+  // 返回主机名的可注册域名（例如 www.bilibili.com → bilibili.com）。
+  function registrableDomain(domain) {
+    var hostname = String(domain || '').toLowerCase().replace(/\.$/, '');
+    // IP 地址与单段内网主机名不按点分段截取。
+    if (!hostname || hostname.indexOf(':') !== -1 || /^(?:\d{1,3}\.){3}\d{1,3}$/.test(hostname)) {
+      return hostname;
+    }
+    var labels = hostname.split('.').filter(Boolean);
+    if (labels.length <= 2) {
+      return hostname;
+    }
+    var publicSuffix = labels.slice(-2).join('.');
+    var domainLabelCount = MULTI_LABEL_PUBLIC_SUFFIXES.has(publicSuffix) ? 3 : 2;
+    return labels.slice(-domainLabelCount).join('.');
+  }
+
+  // 精确映射优先于通配符；无映射时依所选模式回退为主域名或完整主机名。
+  function resolveGroupTitleSync(domain, mappings, groupingMode) {
+    var hostname = String(domain || '').toLowerCase();
+    var rules = Array.isArray(mappings) ? mappings : [];
+    var exact = rules.find(function (mapping) { return mapping.domain === hostname; });
+    if (exact) {
+      return exact.label;
+    }
+    var best = null;
+    for (var i = 0; i < rules.length; i++) {
+      var mapping = rules[i];
+      if (mapping.domain.startsWith('*.')) {
+        var suffix = mapping.domain.slice(1);
+        if (hostname.endsWith(suffix) && hostname.length > suffix.length &&
+            (!best || mapping.domain.length > best.domain.length)) {
+          best = mapping;
+        }
+      }
+    }
+    if (best) {
+      return best.label;
+    }
+    return groupingMode === DOMAIN_GROUPING_MODES.FULL_HOSTNAME
+      ? hostname
+      : registrableDomain(hostname);
   }
 
   // 重试异步操作，处理"Tabs cannot be edited right now"错误
@@ -170,7 +231,10 @@
   return {
     COLLATOR_LOCALE: COLLATOR_LOCALE,
     GROUP_COLOR_CSS: GROUP_COLOR_CSS,
+    DOMAIN_GROUPING_MODES: DOMAIN_GROUPING_MODES,
     groupColorCss: groupColorCss,
+    registrableDomain: registrableDomain,
+    resolveGroupTitleSync: resolveGroupTitleSync,
     retryAsyncOperation: retryAsyncOperation,
     compareTabTitle: compareTabTitle,
     compareGroupTitle: compareGroupTitle,
