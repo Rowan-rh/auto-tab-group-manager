@@ -13,6 +13,7 @@ document.addEventListener('DOMContentLoaded', function() {
   const importMappingsButton = document.getElementById('import-mappings-btn');
   const importFileInput = document.getElementById('import-file-input');
   const autoGroupingToggle = document.getElementById('auto-grouping-toggle');
+  const domainGroupingModeSelect = document.getElementById('domain-grouping-mode');
   const openManagerButton = document.getElementById('open-manager-btn');
   const autoCollapseToggle = document.getElementById('auto-collapse-toggle');
   const autoCollapseMinutesInput = document.getElementById('auto-collapse-minutes');
@@ -32,6 +33,16 @@ document.addEventListener('DOMContentLoaded', function() {
   });
   autoGroupingToggle.addEventListener('change', () => {
     chrome.storage.sync.set({ autoGroupingEnabled: autoGroupingToggle.checked });
+  });
+
+  // 域名分组方式：缺省按可注册域名归组，并同步保存用户选择。
+  chrome.storage.sync.get('domainGroupingMode').then(({ domainGroupingMode = DOMAIN_GROUPING_MODES.REGISTRABLE_DOMAIN }) => {
+    domainGroupingModeSelect.value = domainGroupingMode === DOMAIN_GROUPING_MODES.FULL_HOSTNAME
+      ? DOMAIN_GROUPING_MODES.FULL_HOSTNAME
+      : DOMAIN_GROUPING_MODES.REGISTRABLE_DOMAIN;
+  });
+  domainGroupingModeSelect.addEventListener('change', () => {
+    chrome.storage.sync.set({ domainGroupingMode: domainGroupingModeSelect.value });
   });
 
   // 无活动自动折叠：回填总开关与阈值；输入与持久化解耦，"保存"按钮才写存储
@@ -135,6 +146,12 @@ document.addEventListener('DOMContentLoaded', function() {
       const minutes = Number.isFinite(next) && next >= 1 ? next : AUTO_CLOSE_DEFAULTS.minutes;
       autoCloseMinutesInput.value = String(minutes);
     }
+    if (changes.domainGroupingMode) {
+      const next = changes.domainGroupingMode.newValue;
+      domainGroupingModeSelect.value = next === DOMAIN_GROUPING_MODES.FULL_HOSTNAME
+        ? DOMAIN_GROUPING_MODES.FULL_HOSTNAME
+        : DOMAIN_GROUPING_MODES.REGISTRABLE_DOMAIN;
+    }
   });
 
   const sortTabsButton = document.getElementById('sort-tabs-btn');
@@ -167,6 +184,8 @@ document.addEventListener('DOMContentLoaded', function() {
       
       // 读取映射规则，按窗口 + 解析后的组标题（映射标签名或域名）分组
       const mappings = await getDomainMappings();
+      const { domainGroupingMode = DOMAIN_GROUPING_MODES.REGISTRABLE_DOMAIN } =
+        await chrome.storage.sync.get('domainGroupingMode');
       // 使用 Map 保存用户可配置的组标题，避免 __proto__/constructor 等标题
       // 与 Object.prototype 冲突，导致合法标签页无法参与整理。
       const windowTitleMap = new Map();
@@ -179,7 +198,7 @@ document.addEventListener('DOMContentLoaded', function() {
         
         try {
           const url = new URL(tab.url);
-          const title = resolveGroupTitleSync(url.hostname, mappings);
+          const title = resolveGroupTitleSync(url.hostname, mappings, domainGroupingMode);
           
           let titles = windowTitleMap.get(tab.windowId);
           if (!titles) {
@@ -697,27 +716,6 @@ async function saveDomainMappings(mappings) {
     throw new Error(`映射规则占用 ${bytes} 字节，超过 Chrome 同步存储单项上限 ${quota} 字节`);
   }
   await chrome.storage.sync.set({ domainMappings: mappings });
-}
-
-// 同步解析域名对应的组标题（精确匹配优先；通配符命中时取后缀最长即最具体的规则；未命中回退为域名本身）
-function resolveGroupTitleSync(domain, mappings) {
-  const exact = mappings.find(m => m.domain === domain);
-  if (exact) {
-    return exact.label;
-  }
-  let best = null;
-  for (const m of mappings) {
-    if (m.domain.startsWith('*.')) {
-      const suffix = m.domain.slice(1); // 如 '.alibaba-inc.com'
-      // 仅匹配子域（需存在子域前缀），主域本身不被通配符规则覆盖
-      if (domain.endsWith(suffix) && domain.length > suffix.length) {
-        if (!best || m.domain.length > best.domain.length) {
-          best = m;
-        }
-      }
-    }
-  }
-  return best ? best.label : domain;
 }
 
 // 加载并展示域名映射规则列表
