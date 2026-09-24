@@ -1,11 +1,11 @@
-# Tab Group Manager — 需求与交付说明
+# Auto Tab Group Manager — 需求与交付说明
 
 > 本文档整理本次开发迭代中用户提出的所有需求、对应方案、落地情况。
 > 涉及分支：`feat/add-inactivity-features`（基于 `develop`）
 
 ## 一、产品背景
 
-Tab Group Manager 是一个 Chrome MV3 扩展（`manifest.json` v3），核心能力：
+Auto Tab Group Manager 是一个 Chrome MV3 扩展（`manifest.json` v3），核心能力：
 
 - **自动分组**：根据域名（含通配符映射）将新打开的标签页归入同名标签组
 - **标签组管理页**：独立 `manager.html`，提供按窗口分区的批量管理（展开/折叠/排序/解散/关闭）
