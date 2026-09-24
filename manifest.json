@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "Tab Group Manager",
+  "name": "Auto Tab Group Manager",
   "version": "1.0",
-  "description": "根据域名自动将浏览器标签页分组",
+  "description": "自动按域名归组，支持自定义组名、多域名合并、标签页与标签组排序，以及闲置标签页管理。",
   "permissions": [
     "alarms",
     "tabGroups",
@@ -14,6 +14,6 @@
   },
   "action": {
     "default_popup": "popup.html",
-    "default_title": "Tab Group Manager"
+    "default_title": "Auto Tab Group Manager"
   }
 }

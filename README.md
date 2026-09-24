@@ -1,13 +1,13 @@
-# Tab Group Manager
+# Auto Tab Group Manager
 
-一个 Chrome 浏览器扩展（Manifest V3），**根据域名自动将标签页分组**，并支持自定义"域名 → 标签名"映射，让标签组以更有语义的名称呈现。
+一个 Chrome 浏览器扩展（Manifest V3），自动按域名整理标签页，并提供自定义组名、标签排序、标签组管理和闲置标签页处理。你可以设置“域名 → 组名”映射，让来自不同域名的标签页归入同一组，也可以在管理页展开、排序、解散或关闭标签组。
 
 ## 安装
 
 ### 1. 克隆代码仓库
 
 ```bash
-git clone http://gitlab.alibaba-inc.com/hrh02420307/tab-group-manager.git
+git clone https://github.com/Rowan-rh/auto-tab-group-manager.git
 ```
 
 ### 2. 打开扩展管理页
