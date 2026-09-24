@@ -1,4 +1,4 @@
-# agent.md — Tab Group Manager 开发规范与约束
+# agent.md — Auto Tab Group Manager 开发规范与约束
 
 > 本文件为 AI Agent 和开发者提供开发行为约束，所有代码变更必须遵守以下规则。
 
