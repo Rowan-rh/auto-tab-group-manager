@@ -299,7 +299,7 @@ document.addEventListener('DOMContentLoaded', function() {
         ? '关闭完成!'
         : (result.succeeded === 0 ? '关闭失败' : '部分完成');
       setTimeout(() => {
-        closeGroupButton.textContent = '关闭所有标签页分组';
+        closeGroupButton.textContent = '关闭所有分组';
       }, 2000);
       
       // 重新加载标签组信息
@@ -308,7 +308,7 @@ document.addEventListener('DOMContentLoaded', function() {
       console.error('Error closing tab groups:', error);
       closeGroupButton.textContent = '关闭失败';
       setTimeout(() => {
-        closeGroupButton.textContent = '关闭所有标签页分组';
+        closeGroupButton.textContent = '关闭所有分组';
       }, 2000);
     }
   });

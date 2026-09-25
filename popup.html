@@ -215,7 +215,7 @@
     }
 
     .toggle-row input[type="number"] {
-      width: 54px;
+      width: 56px;
       margin-left: auto;
       padding: 5px 6px;
       color: var(--ink);
@@ -255,8 +255,8 @@
 
     .toggle-row .config-save-btn {
       width: auto;
-      min-height: 28px;
-      padding: 5px 9px;
+      min-height: 26px;
+      padding: 4px 10px;
       color: #d6eee4;
       background: transparent;
       border-color: rgba(184, 221, 208, 0.58);
@@ -279,7 +279,24 @@
     .header .mapping-error {
       position: relative;
       z-index: 1;
+      margin: -3px 0 9px 22px;
       color: #ffb5a8;
+    }
+
+    .header-actions {
+      position: relative;
+      z-index: 1;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-top: 14px;
+      padding-top: 14px;
+      border-top: 1px solid rgba(173, 235, 218, 0.16);
+    }
+
+    .header-actions #open-manager-btn,
+    .header-actions #organize {
+      grid-column: 1 / -1;
     }
 
     .mapping-section,
@@ -488,22 +505,24 @@
     <label class="toggle-row">
       <input type="checkbox" id="auto-collapse-toggle" checked>
       <span>无活动自动折叠</span>
-      <input type="number" id="auto-collapse-minutes" min="1" step="1" style="width:60px;margin-left:8px">
+      <input type="number" id="auto-collapse-minutes" min="1" step="1">
       <span>分钟</span>
-      <button type="button" id="auto-collapse-save" class="config-save-btn" style="margin-left:6px;padding:3px 10px;font-size:12px;">保存</button>
+      <button type="button" id="auto-collapse-save" class="config-save-btn">保存</button>
     </label>
-    <div class="mapping-error" id="auto-collapse-error" style="margin-bottom:10px;"></div>
+    <div class="mapping-error" id="auto-collapse-error"></div>
     <label class="toggle-row">
       <input type="checkbox" id="auto-close-toggle">
       <span>自动关闭休眠</span>
-      <input type="number" id="auto-close-minutes" min="1" step="1" style="width:60px;margin-left:8px">
+      <input type="number" id="auto-close-minutes" min="1" step="1">
       <span>分钟</span>
     </label>
-    <div class="mapping-error" id="auto-close-error" style="margin-bottom:10px;"></div>
-    <button id="open-manager-btn">标签组管理</button>
-    <button id="organize">重新整理所有标签页</button>
-    <button id="sort-tabs-btn">排序标签页</button>
-    <button id="close-group-btn">关闭所有标签页分组</button>
+    <div class="mapping-error" id="auto-close-error"></div>
+    <div class="header-actions">
+      <button id="open-manager-btn">标签组管理</button>
+      <button id="organize">重新整理所有标签页</button>
+      <button id="sort-tabs-btn">排序标签页</button>
+      <button id="close-group-btn">关闭所有分组</button>
+    </div>
   </div>
   
   <div class="mapping-section">
